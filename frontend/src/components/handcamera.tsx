@@ -16,6 +16,13 @@ export default function HandCamera({ onNumberDetected }: Props) {
 
   const videoRef = useRef<HTMLVideoElement | null>(null)
 
+  // store latest callback without restarting camera
+  const callbackRef = useRef(onNumberDetected)
+
+  useEffect(() => {
+    callbackRef.current = onNumberDetected
+  }, [onNumberDetected])
+
   useEffect(() => {
     if (!videoRef.current) return
 
@@ -45,14 +52,14 @@ export default function HandCamera({ onNumberDetected }: Props) {
       })
 
       if (detectedHands > 0) {
-        onNumberDetected(total)
+        callbackRef.current(total)
       }
 
     }
 
     initHandTracker(videoRef.current, handleResults)
 
-  }, [onNumberDetected])
+  }, []) // run only once
 
   return (
     <video

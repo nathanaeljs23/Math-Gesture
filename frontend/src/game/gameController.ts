@@ -9,35 +9,45 @@ export class GameController {
 
   private lastLocked = false
 
+  private result: "correct" | "wrong" | null = null
+
+  private feedbackEnd = 0
+
   getQuestion() {
     return this.question
   }
 
   update(number: number | null) {
 
-    const hold = this.holdDetector.update(number)
+  const now = performance.now()
 
-    let result: "correct" | "wrong" | null = null
+  const hold = this.holdDetector.update(number)
 
-    if (hold.locked && !this.lastLocked) {
+  if (hold.locked && !this.lastLocked) {
 
-      if (hold.number === this.question.answer) {
-        result = "correct"
-      } else {
-        result = "wrong"
-      }
-
-      this.question = generateQuestion()
+    if (hold.number === this.question.answer) {
+      this.result = "correct"
+    } else {
+      this.result = "wrong"
     }
 
-    this.lastLocked = hold.locked
-
-    return {
-      holdProgress: hold.progress,
-      currentNumber: hold.number,
-      locked: hold.locked,
-      result,
-      question: this.question
-    }
+    // keep feedback visible for 700ms
+    this.feedbackEnd = now + 700
   }
+
+  if (this.result && now > this.feedbackEnd) {
+    this.result = null
+    this.question = generateQuestion()
+  }
+
+  this.lastLocked = hold.locked
+
+  return {
+    holdProgress: hold.progress,
+    currentNumber: hold.number,
+    locked: hold.locked,
+    result: this.result,
+    question: this.question
+  }
+}
 }

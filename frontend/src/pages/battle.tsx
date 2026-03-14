@@ -1,9 +1,13 @@
+import { useState } from "react"
+import HandCamera from "../components/handcamera"
+import { GameController } from "../game/gameController"
+import GameUI from "../components/GameUI"
 import PlayerCharacter from "../components/playermodel"
 import red from "../assets/red.png"
 import blue from "../assets/blue.png"
+import green from "../assets/green.png" 
 import pink from "../assets/pink.png"
-import green from "../assets/green.png"
-import HandTracker from "../components/handcamera"
+import { useCallback } from "react"
 
 const game = new GameController()
 
@@ -11,13 +15,11 @@ export default function Battle() {
 
   const [state, setState] = useState<any>(null)
 
-  function handleNumber(num: number) {
+  const handleNumber = useCallback((num: number) => {
+     const newState = game.update(num)
+     setState(newState)
+  }, [])
 
-    const newState = game.update(num)
-
-    setState(newState)
-
-  }
   return (
     <div className="relative w-screen h-screen">
 
@@ -45,7 +47,10 @@ export default function Battle() {
         className="absolute right-32 bottom-12"
       />
 
+	    <HandCamera onNumberDetected={handleNumber} />
+
+      {state && <GameUI state={state} />}
+
     </div>
-    
   )
 }
