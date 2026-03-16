@@ -60,29 +60,23 @@ async def create_room(sid,data):
     
 @sio.event
 async def join_room(sid, data):
-    """
-    Expected data from client: {"nickname": "Player2", "pin": "ABCD"}
-    """
-    nickname = data.get("nickname", "Guest")
-    pin = data.get("pin", "").upper()
+    pin = data.get("pin", "1234")
+    nickname = data.get("nickname", "calvin")
     
     if pin not in active_rooms:
-        await sio.emit("error", {"message": "Room not found"}, to=sid)
-        return
+        active_rooms[pin] = Room(pin=pin, players={}, status="lobby") # Auto-create if missing
+
     room = active_rooms[pin]
-    if room.status != 'lobby':
-        await sio.emit("error", {"message": "Game has already started"}, to=sid)
-        return
-    if len(room.players) >= 4:
-        await sio.emit("error", {"message": "Room is full (Max 4 Players)"}, to=sid)
-        return
-    new_player = Player(session_id=sid, nickname=nickname)
-    room.players[sid] = new_player
     
-    sio.enter_room(sid,pin)
+    # Add player to the dictionary
+    room.players[sid] = Player(nickname=nickname, session_id=sid)
     
+    # Join the Socket.IO room
+    await sio.enter_room(sid, pin)
+    
+    # CRITICAL: Broadcast to EVERYONE in the room including the person who joined
     await sio.emit("lobby_updated", room.model_dump(), room=pin)
-    print(f"{nickname} ({sid}) joined room {pin}")
+    print(f"User {nickname} joined room {pin}. Total players: {len(room.players)}")
     
 async def game_timer_task(pin:str):
     room = active_rooms.get(pin)
@@ -105,9 +99,9 @@ async def start_game(sid, data):
     
     room = active_rooms[pin]
     
-    if room.creator_session_id != sid:
-        await sio.emit("error", {"message": "only the creator can start the game."}, to=sid)
-        return
+    # if room.creator_session_id != sid:
+    #     await sio.emit("error", {"message": "only the creator can start the game."}, to=sid)
+    #     return
     if room.status != "lobby":
         await sio.emit("error", {"message": "Game has already started."}, to=sid)
         return
@@ -162,30 +156,41 @@ async def advance_stage(pin:str):
     
 @sio.event
 async def damage_monster(sid, data):
-    """
-    Expected data from client: {"pin": "ABCD", "damage": 1}
-    """
     pin = data.get("pin", "").upper()
-    damage = data.get("damage",1)
+    # Get the damage sent by the frontend (default to 10) s
+    damage_dealt = data.get("damage", 10) 
+    
     if pin not in active_rooms:
         return
+    
     room = active_rooms[pin]
     
-    if room.status != "playing":
-        return
-    
-    if room.shared_monster_hp <= 0:
-        return
-    
-    room.shared_monster_hp -=damage
-    room.players[sid].score +=damage
-    
-    if room.shared_monster_hp <= 0:
-        room.shared_monster_hp = 0
-        await advance_stage(pin)
-    else:
-        await sio.emit("monster_damaged",{
+    # Only allow damage if the game is actually running
+    if room.status == "playing" and room.shared_monster_hp > 0:
+        room.shared_monster_hp = max(0, room.shared_monster_hp - damage_dealt)
+        
+        # Update individual player score if you're tracking it
+        if sid in room.players:
+            room.players[sid].score += damage_dealt
+
+        # BROADCAST: Include the damage amount so the log can show it
+        await sio.emit("monster_damaged", {
             "shared_monster_hp": room.shared_monster_hp,
             "player_id": sid,
-            "new_score": room.players[sid].score
-        },room=pin)
+            "damage": damage_dealt  # This is the "Important Note" part
+        }, room=pin)
+
+
+
+# testing aaaaa
+active_rooms["1234"] = Room(
+    pin="1234",
+    time_limit_seconds=600,
+    time_remaining=600,
+    creator_session_id="SYSTEM",
+    players={},
+    status="lobby",
+    shared_monster_hp=250,
+    shared_monster_max_hp=250,
+    current_stage=1
+)
